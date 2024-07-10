@@ -36,6 +36,7 @@ void vTaskServoControl(void *pvParameters) {
         myServo.write(int(command.toInt()));
         Serial.println("Servo rotating to " + command + " degrees");
       } else {
+        
         Serial.println("Invalid command");
       }
       newCommand = false;
