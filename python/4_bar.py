@@ -17,7 +17,7 @@ def connect_to_port():
     if port:
         try:
             global ser
-            ser = serial.Serial(port, 9600, timeout=1)
+            ser = serial.Serial(port, 115200, timeout=1)
             result_label.config(text=f"Connected successfully to {port}")
             enable_controls(True)
         except serial.SerialException as e:
@@ -28,16 +28,16 @@ def connect_to_port():
 def send_command(command):
     if ser:
         ser.write(command.encode())
+        print(f"Sent command: {command}")
+        result_label.config(text=f"Speed set to: {command}")
     else:
         result_label.config(text="Serial connection not established")
 
 def on_slider_change(value):
-    command = str(int(float(value)))  # Convert the slider value to integer string
-    if ser:
-        ser.write(command.encode())
-        result_label.config(text=f"speed set to: {command}")
-    else:
-        result_label.config(text="Serial connection not established")
+    global slider_timer
+    if slider_timer:
+        root.after_cancel(slider_timer)
+    slider_timer = root.after(300, send_command, str(int(float(value))))
 
 def enable_controls(enable):
     if enable:
@@ -52,8 +52,8 @@ def enable_controls(enable):
 # Create the main window
 root = tk.Tk()
 root.title("COM Port Connector")
+slider_timer = None
 
-# Create and pack the widgets
 ttk.Label(root, text="Select a COM port:").pack(padx=10, pady=5)
 port_combobox = ttk.Combobox(root, width=50, state="readonly")
 port_combobox.pack(padx=10, pady=5)
@@ -62,16 +62,14 @@ refresh_button.pack(padx=10, pady=5)
 connect_button = ttk.Button(root, text="Connect", command=connect_to_port)
 connect_button.pack(padx=10, pady=5)
 
-# Control buttons
 buttons_frame = ttk.Frame(root)
 buttons_frame.pack(padx=10, pady=10)
 control_buttons = []
-for command in ["Left", "Stop", "Right"]:
+for command in ["CW", "Stop", "CCW"]:
     button = ttk.Button(buttons_frame, text=command, command=lambda cmd=command: send_command(cmd))
     button.pack(side=tk.LEFT, padx=5)
     control_buttons.append(button)
 
-# Slider for sending values 0-100
 slider = tk.Scale(root, from_=0, to=100, orient='horizontal', command=on_slider_change)
 slider.pack(fill=tk.X, padx=10, pady=10)
 slider.config(state=tk.DISABLED)
@@ -79,9 +77,7 @@ slider.config(state=tk.DISABLED)
 result_label = ttk.Label(root, text="")
 result_label.pack(padx=10, pady=10)
 
-# Initialize the port list and disable control buttons
 refresh_ports()
 enable_controls(False)
 
-# Start the GUI
 root.mainloop()
