@@ -4,10 +4,8 @@ import serial
 import serial.tools.list_ports
 
 def refresh_ports():
-    port_combobox['values'] = []
-    ports = serial.tools.list_ports.comports()
-    port_combobox['values'] = [port.device for port in ports]
-    if ports:
+    port_combobox['values'] = [port.device for port in serial.tools.list_ports.comports()]
+    if port_combobox['values']:
         port_combobox.current(0)
     else:
         port_combobox.set('No COM ports found')
@@ -20,6 +18,7 @@ def connect_to_port():
             ser = serial.Serial(port, 115200, timeout=1)
             result_label.config(text=f"Connected successfully to {port}")
             enable_controls(True)
+            check_connection()
         except serial.SerialException as e:
             result_label.config(text=f"Failed to connect to {port}: {e}")
     else:
@@ -27,57 +26,80 @@ def connect_to_port():
 
 def send_command(command):
     if ser:
-        ser.write(command.encode())
-        print(f"Sent command: {command}")
-        result_label.config(text=f"Speed set to: {command}")
+        try:
+            ser.write((command + '\n').encode())
+            # print(f"Sent command: {command}")
+            result_label.config(text=f"Command sent: {command}")
+        except serial.SerialException as e:
+            result_label.config(text=f"Failed to send command: {e}")
     else:
         result_label.config(text="Serial connection not established")
 
-def on_slider_change(value):
-    global slider_timer
-    if slider_timer:
-        root.after_cancel(slider_timer)
-    slider_timer = root.after(300, send_command, str(int(float(value))))
+def on_stop():
+    send_command("STOP")
 
 def enable_controls(enable):
-    if enable:
-        for button in control_buttons:
-            button.config(state=tk.NORMAL)
-        slider.config(state=tk.NORMAL)
-    else:
-        for button in control_buttons:
-            button.config(state=tk.DISABLED)
-        slider.config(state=tk.DISABLED)
+    state = tk.NORMAL if enable else tk.DISABLED
+    for widget in control_widgets:
+        widget.config(state=state)
 
-# Create the main window
+def check_connection():
+    if ser:
+        try:
+            ser.readline()
+            root.after(1000, check_connection)
+        except serial.SerialException:
+            result_label.config(text="Connection lost. Please reconnect.")
+            enable_controls(False)
+
 root = tk.Tk()
-root.title("COM Port Connector")
-slider_timer = None
+root.title("Servo Control Panel")
+ser = None
 
 ttk.Label(root, text="Select a COM port:").pack(padx=10, pady=5)
 port_combobox = ttk.Combobox(root, width=50, state="readonly")
 port_combobox.pack(padx=10, pady=5)
-refresh_button = ttk.Button(root, text="Refresh Ports", command=refresh_ports)
-refresh_button.pack(padx=10, pady=5)
-connect_button = ttk.Button(root, text="Connect", command=connect_to_port)
-connect_button.pack(padx=10, pady=5)
+ttk.Button(root, text="Refresh Ports", command=refresh_ports).pack(padx=10, pady=5)
+ttk.Button(root, text="Connect", command=connect_to_port).pack(padx=10, pady=5)
 
-buttons_frame = ttk.Frame(root)
-buttons_frame.pack(padx=10, pady=10)
-control_buttons = []
-for command in ["CW", "Stop", "CCW"]:
-    button = ttk.Button(buttons_frame, text=command, command=lambda cmd=command: send_command(cmd))
-    button.pack(side=tk.LEFT, padx=5)
-    control_buttons.append(button)
+direction_combobox = ttk.Combobox(root, width=10, state="readonly", values=["CW", "CCW"])
+direction_combobox.pack(padx=10, pady=5)
+direction_combobox.set("CW")  # Set default value
 
-slider = tk.Scale(root, from_=0, to=100, orient='horizontal', command=on_slider_change)
-slider.pack(fill=tk.X, padx=10, pady=10)
-slider.config(state=tk.DISABLED)
+speed_combobox = ttk.Combobox(root, width=10, state="readonly", values=["75", "100"])
+speed_combobox.pack(padx=10, pady=5)
+speed_combobox.set("75")  # Set default value
+
+control_frame = ttk.Frame(root)
+control_frame.pack(padx=10, pady=10)
+
+send_button = ttk.Button(control_frame, text="Go", command=lambda: send_command(f"{direction_combobox.get()} {speed_combobox.get()}"))
+send_button.pack(side=tk.LEFT, padx=10)
+
+stop_button = ttk.Button(control_frame, text="Stop", command=on_stop)
+stop_button.pack(side=tk.LEFT, padx=10)
+
+control_frame = ttk.Frame(root)
+control_frame.pack(padx=10, pady=15)
+
+angles = ["0deg", "90deg", "180deg", "270deg"]
+for angle in angles:
+    button = ttk.Button(control_frame, text=angle, command=lambda a=angle: send_command(a))
+    button.pack(side=tk.LEFT, padx=10)
+
+control_frame = ttk.Frame(root)
+control_frame.pack(padx=10, pady=20)
+
+commends = ["forward", "backward"]
+for commend in commends:
+    button = ttk.Button(control_frame, text=commend, command=lambda a=commend: send_command(a))
+    button.pack(side=tk.LEFT, padx=10)
 
 result_label = ttk.Label(root, text="")
 result_label.pack(padx=10, pady=10)
 
 refresh_ports()
+control_widgets = [direction_combobox, speed_combobox, send_button, stop_button] + control_frame.winfo_children()
 enable_controls(False)
 
 root.mainloop()
