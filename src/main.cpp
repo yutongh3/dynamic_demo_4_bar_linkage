@@ -126,6 +126,7 @@ void vTaskSerialRead(void *pvParameters) {
         Serial.println("Invalid command");
       }
     }
+    // Serial.println(as5600.readAngle());
     vTaskDelay(5 / portTICK_PERIOD_MS);
   }
 }
